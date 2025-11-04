@@ -11,11 +11,10 @@ This version of ByteBanter is meant to comply with BurpSuite BApp store standard
 ## Installation
 You can find this version of ByteBanter in the official BurpSuite BApp store. But If you prefer you can compile the code by yourself according to the following instructions.
 
-* Clone the Repository and checkout `bapp` branch:
+* Clone the Repository:
 
 ```bash
-git clone https://github.com/anvilsecure/bytebanter/
-git checkout bapp
+git clone https://github.com/anvilsecure/bytebanter-burpai/
 ```
 * Build the Extension: Navigate to the project directory and build the JAR file using your preferred build tool (e.g., Maven or Gradle).
 
@@ -36,7 +35,7 @@ gradle build
 ## Usage
 * Configure LLM Settings:
   * Navigate to the newly added ByteBanter tab in Burp Suite. 
-  * Enter your LLM API credentials and configure any necessary settings. 
+  * Configure any necessary settings. 
 * Set Up Intruder Attack:
   * Go to the Intruder tab. 
   * Configure your target and positions as usual. 
@@ -51,10 +50,9 @@ gradle build
   * ByteBanter will generate and supply payloads dynamically using the configured LLM.
 
 ## Configuration
-In the **ByteBanter** extension tab: select the framework you want to use from the combo box on th top right corner.
-Configure the endpoint details (i.e.: model URL, parameters). Set whether you want the extension to keep track of target responses and 
+In the **ByteBanter** extension tab: you can select whether you want the extension to keep track of target responses and 
 specify the regular expression to extract them form the HTTP body. Write your prompt to instruct the model for generating payloads.
-Eventually use the "Optimize!" button to ask AI to optimize your prompt. And you are ready to go! Settings are 
+Eventually use the "Optimize!" button to ask Burop AI to optimize your prompt. And you are ready to go! Settings are 
 automatically saved and used by the generator and Burp also persists them.
 
 ## Development
