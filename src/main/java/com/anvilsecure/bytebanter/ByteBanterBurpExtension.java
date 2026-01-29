@@ -10,17 +10,13 @@ import burp.api.montoya.intruder.PayloadGenerator;
 import burp.api.montoya.intruder.PayloadGeneratorProvider;
 import com.anvilsecure.bytebanter.AIEngineUIs.AIEngineUI;
 import com.anvilsecure.bytebanter.AIEngines.AIEngine;
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
 import java.net.URL;
-import java.util.List;
 import java.util.Set;
 
 public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadingHandler, PayloadGeneratorProvider {
