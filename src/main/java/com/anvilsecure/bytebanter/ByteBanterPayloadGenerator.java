@@ -15,9 +15,6 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
 
     private final List<AIEngine> engines;
     private AIEngine engine;
-    private int counter = 0;
-    private int maxIntruderRequests = 1000000;
-    private boolean isInfiniteGeneration = false;
 
     public ByteBanterPayloadGenerator(MontoyaApi api) {
         engines = new ArrayList<>();
@@ -46,24 +43,13 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
         return names;
     }
 
-    public int setMaxIntruderRequests(int maxIntruderRequests) {
-        this.maxIntruderRequests = maxIntruderRequests;
-        return maxIntruderRequests;
-    }
-
-    public boolean setInfiniteGeneration(boolean infiniteGeneration) {
-        isInfiniteGeneration = infiniteGeneration;
-        return isInfiniteGeneration;
-    }
-
     @Override
     public GeneratedPayload generatePayloadFor(IntruderInsertionPoint intruderInsertionPoint) {
-            if (isInfiniteGeneration || counter <= maxIntruderRequests) {
-                counter++;
-                return GeneratedPayload.payload(engine.askAi());
-            }
-            counter = 0;
-            return GeneratedPayload.end();
-
+                String payload = engine.askAi();
+                if (payload != null) {
+                    return GeneratedPayload.payload(engine.askAi());
+                } else {
+                    return GeneratedPayload.end();
+                }
     }
 }

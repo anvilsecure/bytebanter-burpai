@@ -119,7 +119,7 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         // Config panel
         configPanel = new JPanel(new GridBagLayout());
         // URL panel
-        URLPanel = payloadGenerator.getEngine().getUI().getURLPanel();
+        URLPanel = payloadGenerator.getEngine().getUI().getAIConfPanel();
         // Param Panel
         paramPanel = payloadGenerator.getEngine().getUI().getParamPanel();
 
@@ -166,7 +166,7 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         configPanel.remove(paramPanel);
         configPanel.remove(statePanel);
         mainPanel.remove(promptPanel);
-        URLPanel = UI.getURLPanel();
+        URLPanel = UI.getAIConfPanel();
         paramPanel = UI.getParamPanel();
         statePanel = UI.getStatePanel();
         promptPanel = UI.getPromptPanel(default_prompt);

@@ -56,7 +56,7 @@ public abstract class AIEngineUI {
     }
 
 
-    public JPanel getURLPanel() {
+    public JPanel getAIConfPanel() {
         JPanel configPanel = new JPanel(new GridBagLayout());
         configPanel.setBorder(new TitledBorder("Engine URL:"));
         urlField = new JTextField("http://localhost:1337/v1/", 40);

@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 
 public class BurpAIEngine extends AIEngine {
 
+    int counter = 0;
+
     public BurpAIEngine(MontoyaApi api) {
         super(api, "BurpAI");
         super.UI = new BurpAIEngineUI(this);
@@ -29,26 +31,32 @@ public class BurpAIEngine extends AIEngine {
         JSONObject params = UI.getParams();
         JSONObject data = packData(new JSONObject(), params);
 
+        // check if the number of maximum requests has been reached
+        if (data.getBoolean("isInfiteRequests") || counter <= data.getInt("requestsLimit")) {
+            counter++;
+            // reset messages on "stateful" change
+            messages = isStateful != params.getBoolean("stateful") ? new JSONArray() : messages;
+            isStateful = params.getBoolean("stateful");
 
-        // reset messages on "stateful" change
-        messages = isStateful != params.getBoolean("stateful") ? new JSONArray() : messages;
-        isStateful = params.getBoolean("stateful");
+            if (messages.isEmpty()) {
+                messages.put(Message.systemMessage(params.getString("prompt")));
+            }
 
-        if(messages.isEmpty()) {
-            messages.put(Message.systemMessage(params.getString("prompt")));
+            if (!isStateful) {
+                messages.put(Message.userMessage(DEFAULT_MESSAGE));
+            }
+            data.remove("messages");
+            data.put("messages", messages);
+            String responseMessage = sendRequestToAI(data, params);
+            api.logging().logToOutput("--------------******* AI Payload: *******-----------------");
+            api.logging().logToOutput(responseMessage);
+            api.logging().logToOutput("----------------------------------------------------------");
+            messages.put(Message.assistantMessage(responseMessage));
+            return responseMessage;
+        } else {
+            counter = 0;
+            return null;
         }
-
-        if(!isStateful) {
-            messages.put(Message.userMessage(DEFAULT_MESSAGE));
-        }
-        data.remove("messages");
-        data.put("messages", messages);
-        String responseMessage = sendRequestToAI(data, params);
-        api.logging().logToOutput("--------------******* AI Payload: *******-----------------");
-        api.logging().logToOutput(responseMessage);
-        api.logging().logToOutput("----------------------------------------------------------");
-        messages.put(Message.assistantMessage(responseMessage));
-        return responseMessage;
     }
 
     // used for other interaction with the AI (i.e.: prompt optimization)
@@ -68,6 +76,8 @@ public class BurpAIEngine extends AIEngine {
     @Override
     protected JSONObject packData(JSONObject data, JSONObject params) {
         data.put("temperature", params.getDouble("temperature")/100);
+        data.put("isInfiniteRequests", params.getBoolean("isInfiniteRequests"));
+        data.put("requestsLimit", params.getInt("requestsLimit"));
         api.logging().logToOutput("Model Config: "+ data.toString());
         return data;
     }
