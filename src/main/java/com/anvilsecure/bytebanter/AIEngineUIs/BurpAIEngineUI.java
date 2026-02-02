@@ -51,7 +51,6 @@ public class BurpAIEngineUI extends AIEngineUI {
         confPanel.add(requestLimitField, gbc);
 
         // --- Logic ---
-
         infiniteRequestCheck.addActionListener(e -> {
             boolean isInfinite = infiniteRequestCheck.isSelected();
             // Disable input if infinite is checked
@@ -59,17 +58,6 @@ public class BurpAIEngineUI extends AIEngineUI {
         });
 
         return confPanel;
-    }
-
-    // Placeholder per le tue funzioni di logica
-    private void handleInfiniteCheckChanged(boolean isInfinite) {
-        System.out.println("Infinite requests: " + isInfinite);
-        // engine.setInfinite(isInfinite);
-    }
-
-    private void handleLimitValueChanged(int newValue) {
-        System.out.println("Nuovo limite richieste: " + newValue);
-        // engine.setRequestLimit(newValue);
     }
 
     @Override
@@ -87,5 +75,12 @@ public class BurpAIEngineUI extends AIEngineUI {
         params.put("isInfiniteRequests", infiniteRequestCheck.isSelected());
         params.put("requestsLimit", requestLimitField.getValue());
         return params;
+    }
+
+    @Override
+    public void loadParams(JSONObject params){
+        super.loadParams(params);
+        infiniteRequestCheck.setSelected(params.optBoolean("isInfiniteRequests"));
+        requestLimitField.setValue(params.optInt("requestsLimit"));
     }
 }

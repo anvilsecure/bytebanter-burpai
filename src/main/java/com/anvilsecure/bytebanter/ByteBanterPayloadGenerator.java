@@ -47,7 +47,7 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
     public GeneratedPayload generatePayloadFor(IntruderInsertionPoint intruderInsertionPoint) {
                 String payload = engine.askAi();
                 if (payload != null) {
-                    return GeneratedPayload.payload(engine.askAi());
+                    return GeneratedPayload.payload(payload);
                 } else {
                     return GeneratedPayload.end();
                 }

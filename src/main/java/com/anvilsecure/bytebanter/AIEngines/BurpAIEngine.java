@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 public class BurpAIEngine extends AIEngine {
 
     int counter = 0;
+    Boolean oldInfiniteFlag = false;
 
     public BurpAIEngine(MontoyaApi api) {
         super(api, "BurpAI");
@@ -30,10 +31,16 @@ public class BurpAIEngine extends AIEngine {
     public String askAi() {
         JSONObject params = UI.getParams();
         JSONObject data = packData(new JSONObject(), params);
+        Boolean isInfiniteRequests = data.getBoolean("isInfiniteRequests");
+        if (oldInfiniteFlag == isInfiniteRequests) { // reset counter if attack length changes
+            counter = 0;
+        }
+        oldInfiniteFlag = isInfiniteRequests;
 
         // check if the number of maximum requests has been reached
-        if (data.getBoolean("isInfiteRequests") || counter <= data.getInt("requestsLimit")) {
+        if (isInfiniteRequests || counter < data.getInt("requestsLimit")) {
             counter++;
+            api.logging().logToOutput(String.valueOf(counter));
             // reset messages on "stateful" change
             messages = isStateful != params.getBoolean("stateful") ? new JSONArray() : messages;
             isStateful = params.getBoolean("stateful");
@@ -55,6 +62,7 @@ public class BurpAIEngine extends AIEngine {
             return responseMessage;
         } else {
             counter = 0;
+            api.logging().logToOutput(String.valueOf(counter));
             return null;
         }
     }
