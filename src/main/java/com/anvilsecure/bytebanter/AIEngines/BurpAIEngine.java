@@ -40,7 +40,6 @@ public class BurpAIEngine extends AIEngine {
         // check if the number of maximum requests has been reached
         if (isInfiniteRequests || counter < data.getInt("requestsLimit")) {
             counter++;
-            api.logging().logToOutput(String.valueOf(counter));
             // reset messages on "stateful" change
             messages = isStateful != params.getBoolean("stateful") ? new JSONArray() : messages;
             isStateful = params.getBoolean("stateful");
@@ -62,7 +61,6 @@ public class BurpAIEngine extends AIEngine {
             return responseMessage;
         } else {
             counter = 0;
-            api.logging().logToOutput(String.valueOf(counter));
             return null;
         }
     }
@@ -71,7 +69,7 @@ public class BurpAIEngine extends AIEngine {
     @Override
     public String askAi(String prompt, String user_input) {
         JSONObject params = UI.getParams();
-        JSONObject data = packData(new JSONObject(), params);;
+        JSONObject data = packData(new JSONObject(), params);
         JSONArray m = new JSONArray();
         m.put(Message.systemMessage(prompt));
         m.put(Message.userMessage(user_input));
@@ -86,7 +84,7 @@ public class BurpAIEngine extends AIEngine {
         data.put("temperature", params.getDouble("temperature")/100);
         data.put("isInfiniteRequests", params.getBoolean("isInfiniteRequests"));
         data.put("requestsLimit", params.getInt("requestsLimit"));
-        api.logging().logToOutput("Model Config: "+ data.toString());
+        api.logging().logToOutput("Model Config: "+ data);
         return data;
     }
 
