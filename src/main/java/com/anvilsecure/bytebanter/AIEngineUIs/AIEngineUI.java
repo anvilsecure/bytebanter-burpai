@@ -26,20 +26,22 @@ public abstract class AIEngineUI {
         this.model = model;
     }
 
-    public JPanel getPromptPanel(String default_prompt){
+    public JPanel getPromptPanel(String default_prompt) {
         JPanel promptPanel = new JPanel(new GridBagLayout());
         promptPanel.setBorder(new TitledBorder("Prompt:"));
         promptField = new JTextArea(default_prompt, 50, 50);
-        promptField.setMinimumSize(new Dimension(50,50));
-        JScrollPane promptScrollPane = new JScrollPane(promptField, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        promptField.setMinimumSize(new Dimension(50, 50));
+        JScrollPane promptScrollPane = new JScrollPane(promptField, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         promptScrollPane.getVerticalScrollBar().setUnitIncrement(18);
         promptField.setLineWrap(true);
-        promptScrollPane.setMinimumSize(new Dimension(50,50));
-        promptPanel.add(promptScrollPane, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+        promptScrollPane.setMinimumSize(new Dimension(50, 50));
+        promptPanel.add(promptScrollPane, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0, GridBagConstraints.CENTER,
+                GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
         return promptPanel;
     }
 
-    public JPanel getStatePanel(){
+    public JPanel getStatePanel() {
         JPanel statePanel = new JPanel(new GridLayout(3, 1));
         statefulCheck = new JCheckBox("Stateful Interaction", false);
         regexField = new JTextField("^\\{.*\\\"answer\\\":\\\"(.*)\\\",\\\"defender\\\".*\\}$");
@@ -55,7 +57,6 @@ public abstract class AIEngineUI {
         return promptField;
     }
 
-
     public JPanel getAIConfPanel() {
         JPanel configPanel = new JPanel(new GridBagLayout());
         configPanel.setBorder(new TitledBorder("Engine URL:"));
@@ -64,7 +65,7 @@ public abstract class AIEngineUI {
         configPanel.add(urlField, new GridBagConstraints(0, 0, 2, 1, 0.001, 0.001,
                 GridBagConstraints.CENTER, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
-        headersField = new JTextArea("",10, 40);
+        headersField = new JTextArea("", 10, 40);
         headersField.setBorder(new TitledBorder("Headers (optional):"));
         configPanel.add(headersField, new GridBagConstraints(0, 2, 2, 1, 1.00, 1.00,
                 GridBagConstraints.PAGE_START, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
@@ -74,20 +75,40 @@ public abstract class AIEngineUI {
     public JPanel getParamPanel() {
         JPanel paramPanel = new JPanel(new GridLayout(6, 1));
         maxTokensSpinner = new JSpinner(new SpinnerNumberModel(512, 1, 4096, 1));
-        temperatureSlider = new JSlider(0,500, 70);
-        topPSlider = new JSlider(0,20, 20);
-        frequencyPenaltySlider = new JSlider(0,20, 0);
-        presencePenaltySlider = new JSlider(0,20, 0);
+        temperatureSlider = new JSlider(0, 500, 70);
+        topPSlider = new JSlider(0, 20, 20);
+        frequencyPenaltySlider = new JSlider(0, 20, 0);
+        presencePenaltySlider = new JSlider(0, 20, 0);
+
         paramPanel.add(new JLabel("Max Tokens:"));
         paramPanel.add(maxTokensSpinner);
-        paramPanel.add(new JLabel("Temperature:"));
+
+        JLabel tempLabel = new JLabel("Temperature: " + String.format("%.2f", temperatureSlider.getValue() / 100.0));
+        temperatureSlider.addChangeListener(
+                e -> tempLabel.setText("Temperature: " + String.format("%.2f", temperatureSlider.getValue() / 100.0)));
+        paramPanel.add(tempLabel);
         paramPanel.add(temperatureSlider);
-        paramPanel.add(new JLabel("Top P:"));
+
+        JLabel topPLabel = new JLabel("Top P: " + String.format("%.2f", topPSlider.getValue() / 20.0));
+        topPSlider.addChangeListener(
+                e -> topPLabel.setText("Top P: " + String.format("%.2f", topPSlider.getValue() / 20.0)));
+        paramPanel.add(topPLabel);
         paramPanel.add(topPSlider);
-        paramPanel.add(new JLabel("Frequency Penalty:"));
+
+        JLabel freqLabel = new JLabel(
+                "Frequency Penalty: " + String.format("%.2f", frequencyPenaltySlider.getValue() / 20.0));
+        frequencyPenaltySlider.addChangeListener(e -> freqLabel
+                .setText("Frequency Penalty: " + String.format("%.2f", frequencyPenaltySlider.getValue() / 20.0)));
+        paramPanel.add(freqLabel);
         paramPanel.add(frequencyPenaltySlider);
-        paramPanel.add(new JLabel("Presence Penalty:"));
+
+        JLabel presLabel = new JLabel(
+                "Presence Penalty: " + String.format("%.2f", presencePenaltySlider.getValue() / 20.0));
+        presencePenaltySlider.addChangeListener(e -> presLabel
+                .setText("Presence Penalty: " + String.format("%.2f", presencePenaltySlider.getValue() / 20.0)));
+        paramPanel.add(presLabel);
         paramPanel.add(presencePenaltySlider);
+
         return paramPanel;
     }
 
@@ -98,14 +119,28 @@ public abstract class AIEngineUI {
         params.put("regex", regexField.getText());
         params.put("b64", b64Check.isSelected());
 
-        //Those fields are not mandatory in engines UIs
-        if(urlField != null){params.put("URL", urlField.getText());}
-        if(headersField != null){params.put("headers", headersField.getText());}
-        if (maxTokensSpinner != null) {params.put("max_tokens", maxTokensSpinner.getValue());}
-        if (temperatureSlider != null) {params.put("temperature", temperatureSlider.getValue());}
-        if (topPSlider != null) {params.put("top_p", topPSlider.getValue());}
-        if (frequencyPenaltySlider != null) {params.put("frequency_penalty", frequencyPenaltySlider.getValue());}
-        if (presencePenaltySlider != null) {params.put("presence_penalty", presencePenaltySlider.getValue());}
+        // Those fields are not mandatory in engines UIs
+        if (urlField != null) {
+            params.put("URL", urlField.getText());
+        }
+        if (headersField != null) {
+            params.put("headers", headersField.getText());
+        }
+        if (maxTokensSpinner != null) {
+            params.put("max_tokens", maxTokensSpinner.getValue());
+        }
+        if (temperatureSlider != null) {
+            params.put("temperature", temperatureSlider.getValue());
+        }
+        if (topPSlider != null) {
+            params.put("top_p", topPSlider.getValue());
+        }
+        if (frequencyPenaltySlider != null) {
+            params.put("frequency_penalty", frequencyPenaltySlider.getValue());
+        }
+        if (presencePenaltySlider != null) {
+            params.put("presence_penalty", presencePenaltySlider.getValue());
+        }
 
         return params;
     }
@@ -116,13 +151,27 @@ public abstract class AIEngineUI {
         regexField.setText(params.getString("regex"));
         b64Check.setSelected(params.getBoolean("b64"));
 
-        //Those fields are not mandatory in engines UIs
-        if(urlField != null){urlField.setText(params.getString("URL"));}
-        if(headersField != null){headersField.setText(params.getString("headers"));}
-        if(maxTokensSpinner != null){maxTokensSpinner.setValue(params.getInt("max_tokens"));}
-        if(temperatureSlider != null){temperatureSlider.setValue(params.getInt("temperature"));}
-        if(topPSlider != null){topPSlider.setValue(params.getInt("top_p"));}
-        if(frequencyPenaltySlider != null){frequencyPenaltySlider.setValue(params.getInt("frequency_penalty"));}
-        if(presencePenaltySlider != null){presencePenaltySlider.setValue(params.getInt("presence_penalty"));}
+        // Those fields are not mandatory in engines UIs
+        if (urlField != null) {
+            urlField.setText(params.getString("URL"));
+        }
+        if (headersField != null) {
+            headersField.setText(params.getString("headers"));
+        }
+        if (maxTokensSpinner != null) {
+            maxTokensSpinner.setValue(params.getInt("max_tokens"));
+        }
+        if (temperatureSlider != null) {
+            temperatureSlider.setValue(params.getInt("temperature"));
+        }
+        if (topPSlider != null) {
+            topPSlider.setValue(params.getInt("top_p"));
+        }
+        if (frequencyPenaltySlider != null) {
+            frequencyPenaltySlider.setValue(params.getInt("frequency_penalty"));
+        }
+        if (presencePenaltySlider != null) {
+            presencePenaltySlider.setValue(params.getInt("presence_penalty"));
+        }
     }
 }

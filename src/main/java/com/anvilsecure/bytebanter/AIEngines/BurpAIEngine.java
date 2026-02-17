@@ -10,6 +10,7 @@ import burp.api.montoya.http.handler.ResponseReceivedAction;
 import com.anvilsecure.bytebanter.AIEngineUIs.BurpAIEngineUI;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import javax.swing.JOptionPane;
 
 import java.util.Arrays;
 import java.util.Base64;
@@ -20,6 +21,7 @@ public class BurpAIEngine extends AIEngine {
 
     int counter = 0;
     Boolean oldInfiniteFlag = false;
+    int requestsLimit = 1;
 
     public BurpAIEngine(MontoyaApi api) {
         super(api, "BurpAI");
@@ -27,36 +29,61 @@ public class BurpAIEngine extends AIEngine {
         super.messages = new JSONArray();
     }
 
+    private boolean isAIEnabled() {
+        if (!api.ai().isEnabled()) {
+            JOptionPane.showMessageDialog(null,
+                    "ByteBanter: Unable to generate payloads or optimize prompts because BurpAI is disabled!"
+                            + "\nOr you have finished your tokens!",
+                    "ByteBanter Error", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+        return true;
+    }
+
     @Override
     public String askAi() {
+        if (!isAIEnabled()) {
+            return null;
+        }
         JSONObject params = UI.getParams();
         JSONObject data = packData(new JSONObject(), params);
         Boolean isInfiniteRequests = data.getBoolean("isInfiniteRequests");
-        if (oldInfiniteFlag == isInfiniteRequests) { // reset counter if attack length changes
+        // reset counter if attack length changes
+        if (oldInfiniteFlag != isInfiniteRequests || this.requestsLimit != data.getInt("requestsLimit")) {
             counter = 0;
         }
         oldInfiniteFlag = isInfiniteRequests;
-
+        this.requestsLimit = data.getInt("requestsLimit");
         // check if the number of maximum requests has been reached
-        if (isInfiniteRequests || counter < data.getInt("requestsLimit")) {
+        if (isInfiniteRequests || counter < this.requestsLimit) {
             counter++;
-            // reset messages on "stateful" change
-            messages = isStateful != params.getBoolean("stateful") ? new JSONArray() : messages;
-            isStateful = params.getBoolean("stateful");
+            // reset messages on "stateful" change or prompt change
+            boolean settingsChanged = (isStateful != params.getBoolean("stateful"))
+                    || !prompt.equals(params.getString("prompt"));
 
-            if (messages.isEmpty()) {
-                messages.put(Message.systemMessage(params.getString("prompt")));
+            isStateful = params.getBoolean("stateful");
+            prompt = params.getString("prompt");
+
+            // Reset if settings changed OR we are in stateless mode (fresh request every
+            // time)
+            if (settingsChanged || !isStateful) {
+                messages = new JSONArray();
+                messages.put(Message.systemMessage(prompt));
             }
 
+            // If stateless, always add the default trigger message
             if (!isStateful) {
                 messages.put(Message.userMessage(DEFAULT_MESSAGE));
+            } else {
+                // In stateful mode, if we just reset (have [System]), add the trigger.
+                // Otherwise, 'messages' already contains history.
+                if (messages.length() == 1) {
+                    messages.put(Message.userMessage(DEFAULT_MESSAGE));
+                }
             }
             data.remove("messages");
             data.put("messages", messages);
             String responseMessage = sendRequestToAI(data, params);
-            api.logging().logToOutput("--------------******* AI Payload: *******-----------------");
-            api.logging().logToOutput(responseMessage);
-            api.logging().logToOutput("----------------------------------------------------------");
             messages.put(Message.assistantMessage(responseMessage));
             return responseMessage;
         } else {
@@ -68,6 +95,9 @@ public class BurpAIEngine extends AIEngine {
     // used for other interaction with the AI (i.e.: prompt optimization)
     @Override
     public String askAi(String prompt, String user_input) {
+        if (!isAIEnabled()) {
+            return prompt;
+        }
         JSONObject params = UI.getParams();
         JSONObject data = packData(new JSONObject(), params);
         JSONArray m = new JSONArray();
@@ -76,15 +106,18 @@ public class BurpAIEngine extends AIEngine {
         data.remove("messages");
         data.put("messages", m);
 
-        return sendRequestToAI(data, params);
+        String r = sendRequestToAI(data, params);
+        if (r == null) {
+            return prompt;
+        }
+        return r;
     }
 
     @Override
     protected JSONObject packData(JSONObject data, JSONObject params) {
-        data.put("temperature", params.getDouble("temperature")/100);
+        data.put("temperature", params.getDouble("temperature") / 100);
         data.put("isInfiniteRequests", params.getBoolean("isInfiniteRequests"));
         data.put("requestsLimit", params.getInt("requestsLimit"));
-        api.logging().logToOutput("Model Config: "+ data);
         return data;
     }
 
@@ -104,26 +137,24 @@ public class BurpAIEngine extends AIEngine {
             // Execute Prompt
             PromptResponse response = api.ai().prompt().execute(options, context);
             return response.content();
-        }catch (PromptException e) {
-            api.logging().logToError("An error occurred while processing the prompt: " + e.getMessage());
-            api.logging().logToError("Unable to retrieve AI response. Please try again later. " +
-                    "(Mostly this error could be related to BurpAI disabled or AI credit exhausted)");
-            // Exception thrown anyway, to stop payload generation.
-            throw new PromptException(e.getMessage());
+        } catch (PromptException e) {
+            JOptionPane.showMessageDialog(null, "An error occurred while processing the prompt: " + e.getMessage() +
+                    "\nUnable to retrieve AI response. Please try again later. " +
+                    "\n(Mostly this error could be related to BurpAI disabled or AI credit exhausted)",
+                    "ByteBanter Error", JOptionPane.ERROR_MESSAGE);
+            // return null, to stop payload generation.
+            return null;
         }
     }
 
-     @Override
+    @Override
     public ResponseReceivedAction handleHttpResponseReceived(HttpResponseReceived httpResponseReceived) {
         JSONObject params = UI.getParams();
         if (isStateful) {
             Matcher matcher = Pattern.compile(params.getString("regex")).matcher(httpResponseReceived.bodyToString());
             if (matcher.find()) {
-                String rxp = params.getBoolean("b64") ?
-                        Arrays.toString(Base64.getDecoder().decode(matcher.group(1))) : matcher.group(1);
-                api.logging().logToOutput("----------------********** Target Response: **********-----------------");
-                api.logging().logToOutput(rxp);
-                api.logging().logToOutput("-----------------------------------------------------------------------");
+                String rxp = params.getBoolean("b64") ? Arrays.toString(Base64.getDecoder().decode(matcher.group(1)))
+                        : matcher.group(1);
                 messages.put(Message.userMessage(rxp));
             }
         }

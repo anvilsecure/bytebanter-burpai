@@ -74,13 +74,6 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
     @Override
     public void initialize(MontoyaApi api) {
         this.api = api;
-        if(!api.ai().isEnabled()){
-             api.logging().logToError("-----------------------------------------------------");
-             api.logging().logToError("Unable to load ByteBanter because BurpAI is disabled!");
-             api.logging().logToError("-----------------------------------------------------");
-             api.logging().logToError("-----------------------------------------------------");
-             throw new RuntimeException();
-        }
         payloadGenerator = new ByteBanterPayloadGenerator(api);
         api.extension().setName(EXTENSION_NAME);
         api.userInterface().registerSuiteTab(EXTENSION_SHORT_NAME, createMainPanel());
@@ -91,7 +84,7 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
     }
 
     @Override
-    public Set<EnhancedCapability> enhancedCapabilities(){
+    public Set<EnhancedCapability> enhancedCapabilities() {
         return Set.of(EnhancedCapability.AI_FEATURES);
     }
 
@@ -102,9 +95,10 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         JPanel titlePanel = new JPanel(new GridBagLayout());
         URL anvilLogo = ByteBanterBurpExtension.class.getResource("/Anvil_Secure_Logo.png");
         ImageIcon anvilLogoIcon = new ImageIcon(anvilLogo, "Logo");
-        JLabel logo = new JLabel(new ImageIcon(anvilLogoIcon.getImage().getScaledInstance(125,53, Image.SCALE_DEFAULT)));
+        JLabel logo = new JLabel(
+                new ImageIcon(anvilLogoIcon.getImage().getScaledInstance(125, 53, Image.SCALE_DEFAULT)));
         titlePanel.add(logo, new GridBagConstraints(0, 0, 2, 1, 1.0, 0.0,
-            GridBagConstraints.LINE_START, GridBagConstraints.NONE, new Insets(5, 5, 5, 5), 0, 0));
+                GridBagConstraints.LINE_START, GridBagConstraints.NONE, new Insets(5, 5, 5, 5), 0, 0));
         JLabel title = new JLabel("ByteBanter");
         title.setForeground(new Color(255, 102, 51));
         title.setFont(new JLabel().getFont().deriveFont(Font.BOLD, 30));
@@ -112,7 +106,7 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
                 GridBagConstraints.LINE_START, GridBagConstraints.NONE, new Insets(5, 5, 5, 5), 0, 0));
 
         // Main panel
-        mainPanel = new JPanel(new GridLayout(1,2, 5, 5));
+        mainPanel = new JPanel(new GridLayout(1, 2, 5, 5));
 
         // Setting the first engine as the default one (as per comboBox selection)
         payloadGenerator.setEngine(0);
@@ -133,16 +127,17 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         mainPanel.add(configPanel);
         drawPanels();
         panel.add(titlePanel, BorderLayout.NORTH);
-        JScrollPane scrollPane = new JScrollPane(mainPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        JScrollPane scrollPane = new JScrollPane(mainPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scrollPane.getVerticalScrollBar().setUnitIncrement(18);
         panel.add(scrollPane, BorderLayout.CENTER);
         return panel;
     }
 
-    private void addOptimizeButton(){
+    private void addOptimizeButton() {
         JButton optimizeButton = new JButton("Optimize!");
         URL sparklerURL = AIEngineUI.class.getResource("/sparkler.png");
-        Image sparkler = new ImageIcon(sparklerURL).getImage().getScaledInstance(20,20,Image.SCALE_SMOOTH);
+        Image sparkler = new ImageIcon(sparklerURL).getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH);
         optimizeButton.setIcon(new ImageIcon(sparkler));
         optimizeButton.addActionListener(e -> optimizePrompt());
         promptPanel.add(optimizeButton, new GridBagConstraints(0, 1, 1, 1, 1.0,
@@ -150,17 +145,17 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
                 new Insets(0, 0, 0, 0), 0, 0));
     }
 
-    private void setPayloadGenerator(Boolean load){
+    private void setPayloadGenerator(Boolean load) {
         // Deregister the old http handler and registers the new one
         if (httpHandler != null) {
             httpHandler.deregister();
         }
-        //if it is not on loading routine, stores the old in engine params the settings
+        // if it is not on loading routine, stores the old in engine params the settings
         payloadGenerator.setEngine(0); // we only have BurpAI in this version
         AIEngine engine = payloadGenerator.getEngine();
         httpHandler = api.http().registerHttpHandler(engine);
         AIEngineUI UI = engine.getUI();
-        if(URLPanel!=null) {
+        if (URLPanel != null) {
             configPanel.remove(URLPanel);
         }
         configPanel.remove(paramPanel);
@@ -179,32 +174,32 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         mainPanel.revalidate();
         mainPanel.repaint();
         // loads the new engine params from the settings
-        try{
+        try {
             UI.loadParams(settings.getJSONObject("engineParams").getJSONObject(engine.getName()));
             settings.getJSONObject("engineParams").remove(engine.getName());
             api.logging().logToOutput("Restoring settings from stored data.");
-        }catch(JSONException exception){
+        } catch (JSONException exception) {
             api.logging().logToOutput("Stored settings already loaded or not existing.");
         }
     }
 
-    private void drawPanels(){
-        //URL
-        if(URLPanel != null) {
+    private void drawPanels() {
+        // URL
+        if (URLPanel != null) {
             URLPanel.setBorder(new TitledBorder("Model Invocation:"));
             configPanel.add(URLPanel, new GridBagConstraints(0, 0, 2, 1, 1.00, 1.00,
                     GridBagConstraints.PAGE_START, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
         }
-        //Param
+        // Param
         paramPanel.setBorder(new TitledBorder("LLM Options:"));
         configPanel.add(paramPanel, new GridBagConstraints(0, 3, 2, 1, 1.00, 1.00,
                 GridBagConstraints.PAGE_START, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
 
-        //State
+        // State
         statePanel.setBorder(new TitledBorder("Context Regex:"));
         configPanel.add(statePanel, new GridBagConstraints(0, 4, 2, 1, 1.00, 1.00,
                 GridBagConstraints.PAGE_START, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0), 0, 0));
-        //Prompt
+        // Prompt
         mainPanel.add(promptPanel);
     }
 
@@ -226,7 +221,7 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         AIEngineUI UI = engine.getUI();
         try {
             settings.getJSONObject("engineParams").put(engine.getName(), UI.getParams());
-        }catch(JSONException exception){
+        } catch (JSONException exception) {
             settings.put("engineParams", new JSONObject().put(engine.getName(), UI.getParams()));
         }
         api.persistence().extensionData().setString("ExtensionSettings", settings.toString());
@@ -234,9 +229,9 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
     }
 
     private void loadSettings() {
-        try{
+        try {
             settingsVersion = Float.parseFloat(api.persistence().extensionData().getString("SettingsVersion"));
-        }catch (NumberFormatException | NullPointerException exc) {
+        } catch (NumberFormatException | NullPointerException exc) {
             settingsVersion = 0;
         }
 
@@ -252,14 +247,52 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         setPayloadGenerator(true);
     }
 
-    private void optimizePrompt(){
+    private void optimizePrompt() {
         AIEngine engine = payloadGenerator.getEngine();
         AIEngineUI ui = payloadGenerator.getEngine().getUI();
         JTextArea promptField = ui.getPromptField();
-        new Thread(() -> promptField.setText(engine.askAi("Optimize the prompt provided by the user following prompt engineering best practices. " +
-                        "return only the new prompt! Use the second person in the new prompt.",
-                promptField.getText()))).start();
+
+        JDialog loadingDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(configPanel), "Optimizing...",
+                true);
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        p.add(new JLabel("Please wait, optimizing prompt...", SwingConstants.CENTER), BorderLayout.CENTER);
+        JProgressBar pb = new JProgressBar();
+        pb.setIndeterminate(true);
+        p.add(pb, BorderLayout.SOUTH);
+        loadingDialog.add(p);
+        loadingDialog.setSize(300, 120);
+        loadingDialog.setLocationRelativeTo(configPanel);
+        loadingDialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+
+        SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                return engine.askAi(
+                        "Optimize the prompt provided by the user following prompt engineering best practices. " +
+                                "return only the new prompt! Use the second person in the new prompt.",
+                        promptField.getText());
+            }
+
+            @Override
+            protected void done() {
+                loadingDialog.dispose();
+                try {
+                    String result = get();
+                    if (result != null) {
+                        promptField.setText(result);
+                    }
+                } catch (Exception e) {
+                    api.logging().logToError("Error optimizing prompt: " + e.getMessage());
+                    JOptionPane.showMessageDialog(configPanel,
+                            "Error optimizing prompt. Check Burp event log for details.", "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+
+        worker.execute();
+        loadingDialog.setVisible(true);
     }
 
 }
-

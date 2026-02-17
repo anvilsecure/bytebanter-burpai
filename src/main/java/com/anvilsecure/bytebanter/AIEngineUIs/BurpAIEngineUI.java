@@ -25,12 +25,15 @@ public class BurpAIEngineUI extends AIEngineUI {
         gbc.insets = new Insets(5, 5, 5, 5);
 
         // pannel title
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
         confPanel.add(new JLabel("Requests Limit Configuration:"), gbc);
 
         // Checkbox for infinite requests
         infiniteRequestCheck = new JCheckBox("Infinite Requests");
-        gbc.gridy = 1; gbc.gridwidth = 1;
+        gbc.gridy = 1;
+        gbc.gridwidth = 1;
         confPanel.add(infiniteRequestCheck, gbc);
 
         // numeric text field (1 - 1.000.000)
@@ -64,13 +67,17 @@ public class BurpAIEngineUI extends AIEngineUI {
     public JPanel getParamPanel() {
         JPanel paramPanel = new JPanel(new GridLayout(6, 1));
         temperatureSlider = new JSlider(1, 200, 50);
-        paramPanel.add(new JLabel("Temperature:"));
+
+        JLabel tempLabel = new JLabel("Temperature: " + String.format("%.2f", temperatureSlider.getValue() / 100.0));
+        temperatureSlider.addChangeListener(
+                e -> tempLabel.setText("Temperature: " + String.format("%.2f", temperatureSlider.getValue() / 100.0)));
+        paramPanel.add(tempLabel);
         paramPanel.add(temperatureSlider);
         return paramPanel;
     }
 
     @Override
-    public JSONObject getParams(){
+    public JSONObject getParams() {
         JSONObject params = super.getParams();
         params.put("isInfiniteRequests", infiniteRequestCheck.isSelected());
         params.put("requestsLimit", requestLimitField.getValue());
@@ -78,7 +85,7 @@ public class BurpAIEngineUI extends AIEngineUI {
     }
 
     @Override
-    public void loadParams(JSONObject params){
+    public void loadParams(JSONObject params) {
         super.loadParams(params);
         infiniteRequestCheck.setSelected(params.optBoolean("isInfiniteRequests"));
         requestLimitField.setValue(params.optInt("requestsLimit"));

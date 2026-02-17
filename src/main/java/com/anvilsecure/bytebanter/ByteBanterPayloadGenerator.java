@@ -10,7 +10,6 @@ import com.anvilsecure.bytebanter.AIEngines.BurpAIEngine;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class ByteBanterPayloadGenerator implements PayloadGenerator {
 
     private final List<AIEngine> engines;
@@ -18,16 +17,14 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
 
     public ByteBanterPayloadGenerator(MontoyaApi api) {
         engines = new ArrayList<>();
-        if(api.ai().isEnabled()){
-            engines.add(new BurpAIEngine(api));
-        }
+        engines.add(new BurpAIEngine(api));
     }
 
-    public void setEngine(int index){
+    public void setEngine(int index) {
         engine = engines.get(index);
     }
 
-    public AIEngine getEngine(){
+    public AIEngine getEngine() {
         return engine;
     }
 
@@ -35,7 +32,7 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
         return engines;
     }
 
-    public String[] getEnginesNames(){
+    public String[] getEnginesNames() {
         String[] names = new String[engines.size()];
         for (int i = 0; i < engines.size(); i++) {
             names[i] = engines.get(i).getName();
@@ -45,11 +42,11 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
 
     @Override
     public GeneratedPayload generatePayloadFor(IntruderInsertionPoint intruderInsertionPoint) {
-                String payload = engine.askAi();
-                if (payload != null) {
-                    return GeneratedPayload.payload(payload);
-                } else {
-                    return GeneratedPayload.end();
-                }
+        String payload = engine.askAi();
+        if (payload != null) {
+            return GeneratedPayload.payload(payload);
+        } else {
+            return GeneratedPayload.end();
+        }
     }
 }
