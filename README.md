@@ -5,8 +5,13 @@
 * **LLM-Driven Payload Generation:** Utilizes LLMs to create dynamic payloads based on user-defined prompts and contexts.
 * **Seamless Burp Integration:** Registers as a custom payload generator within Burp Intruder, allowing easy selection and use.
 * **Configurable Prompts:** Users can define and customize prompts to guide the LLM in generating desired payloads.
+* **Support for Multiple LLM Providers:** Burp AI is the default provider; the extension also supports Ollama, the Anthropic Messages API, and any OpenAI-compatible `chat/completions` endpoint (e.g. OpenAI, Oobabooga, LM Studio, vLLM).
 
-This version of ByteBanter is meant to comply with BurpSuite BApp store standards, hence it supports interaction only with BurpAI engine. You can find on the main branch the version with capabilities to interact with other LLM engines. 
+This version of ByteBanter complies with the BApp Store standards for extensions that use third-party LLMs:
+* Declares `EnhancedCapability.AI_FEATURES` and verifies that Burp AI is enabled before any LLM call.
+* Burp AI is configured as the default provider.
+* All third-party LLM requests use the Montoya API networking capabilities (`api.http().sendRequest`).
+* All third-party LLM requests are sent with `RequestOptions.withUpstreamTLSVerification()` to verify the integrity of the data sent to the provider.
 
 ## Installation
 You can find this version of ByteBanter in the official BurpSuite BApp store. But If you prefer you can compile the code by yourself according to the following instructions.
@@ -50,9 +55,10 @@ gradle build
   * ByteBanter will generate and supply payloads dynamically using the configured LLM.
 
 ## Configuration
-In the **ByteBanter** extension tab: you can select whether you want the extension to keep track of target responses and 
-specify the regular expression to extract them form the HTTP body. Write your prompt to instruct the model for generating payloads.
-Eventually use the "Optimize!" button to ask Burop AI to optimize your prompt. And you are ready to go! Settings are 
+In the **ByteBanter** extension tab: select the engine you want to use from the combo box in the top right corner (Burp AI is the default).
+Configure the endpoint details (URL, headers, parameters) where applicable. Set whether you want the extension to keep track of target responses and
+specify the regular expression to extract them from the HTTP body. Write your prompt to instruct the model for generating payloads.
+Eventually use the "Optimize!" button to ask AI to optimize your prompt. And you are ready to go! Settings are
 automatically saved and used by the generator and Burp also persists them.
 
 ## Development
@@ -69,3 +75,4 @@ This project is licensed under the [MIT License](https://opensource.org/license/
 
 ## Acknowledgments
 * [PortSwigger](https://portswigger.net/) for Burp Suite and its extensibility.
+* [OpenAI](https://openai.com/), [Anthropic](https://www.anthropic.com/), [Ollama](https://ollama.com/), and [Oobabooga](https://github.com/oobabooga) for providing powerful LLM APIs.
