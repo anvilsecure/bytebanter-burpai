@@ -54,10 +54,17 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
 
     @Override
     public GeneratedPayload generatePayloadFor(IntruderInsertionPoint intruderInsertionPoint) {
-        String payload = engine.askAi();
-        if (payload != null) {
+        try {
+            String payload = engine.askAi();
+            // Treat both null and empty/whitespace-only as end-of-generation:
+            // an attack stop can leave a subprocess engine (e.g. Claude Code CLI) returning
+            // an empty stdout, and Burp NPEs internally on a payload whose value is empty.
+            if (payload == null || payload.isBlank()) {
+                return GeneratedPayload.end();
+            }
             return GeneratedPayload.payload(payload);
-        } else {
+        } catch (Throwable t) {
+            // Never propagate an exception from askAi up into Intruder.
             return GeneratedPayload.end();
         }
     }

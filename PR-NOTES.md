@@ -72,8 +72,14 @@ through a dedicated panel in the configuration column.
 - A "Generate from prompt!" button (same sparkler styling as the existing
   Optimize button) derives a starting criterion from the current
   payload-generation prompt using a one-shot example.
-- A truncation spinner caps how many characters of the request and response
-  are sent to the verification model, bounding token usage on large bodies.
+- A mode-aware sizing spinner adapts to the Stateful Interaction toggle:
+  when stateless, it is "Truncate request/response (chars)" and caps the
+  raw HTTP request/response sent to the verifier; when stateful, it becomes
+  "Conversation history depth (turns)" and decides how many recent
+  `(payload, regex-extracted target response)` pairs are forwarded as
+  context, so successes that emerge over multiple exchanges (e.g. a
+  password reconstructed letter-by-letter) are detectable. Both values
+  are persisted independently so toggling the mode does not lose either.
 - The JSON parser tolerates markdown fences, leading/trailing prose, and
   malformed output; on parse failure the response is silently treated as
   unsuccessful.
@@ -99,10 +105,18 @@ the headers field, with a right-aligned checkbox.
   (target names, parameter names, URLs, secret keywords, encodings, regex
   patterns), and explicit user constraints; preamble and markdown are
   forbidden in the output.
-- The verification meta-prompt uses XML-tag delimiters around criterion,
-  request, and response; defaults to failure on truncated or ambiguous
-  evidence; and constrains the `strategy` field to describe what made the
-  payload effective rather than what was observed.
+- The verification meta-prompt uses XML-tag delimiters and a single context
+  block that adapts to the mode: `<request>/<response>` for stateless,
+  `<turn>` blocks with `<bytebanter_payload>` and
+  `<target_extracted_response>` for stateful. The system prompt defaults to
+  failure on truncated or ambiguous evidence, and constrains the `strategy`
+  field to describe what made the payload effective rather than what was
+  observed.
+- Conversation state is reset across attacks: Intruder calls
+  `providePayloadGenerator` once per attack, and ByteBanter resets the
+  engine's messages array on that hook so context from a previous attack
+  cannot leak into the new one. Mid-attack prompt changes still trigger a
+  reset as before.
 - The prompt-tracking fix originally requested by PortSwigger for the BApp
   Store version now also covers the third-party engines: changing the prompt
   mid-attack is detected and the conversation is reset so the new prompt
