@@ -8,6 +8,18 @@ introduces an opt-in Success Verification feature for Burp Intruder, an opt-in
 for persisting sensitive data, and a number of UX and prompt-engineering
 fixes.
 
+> **Heads-up for the reviewer:** the source tree contains an additional engine,
+> `ClaudeCodeEngine`, that delegates prompts to a local Claude Code CLI
+> subprocess so that users can route through their existing Anthropic
+> subscription instead of an API key. This engine bypasses the Montoya
+> networking API (the subprocess makes its own HTTP calls) and therefore does
+> not satisfy the third-party LLM policy in the same way the four engines
+> above do. We are happy to **remove the registration of this engine before
+> the BApp Store build** if PortSwigger prefers; the README documents the
+> exact one-line change in `ByteBanterPayloadGenerator`. The compliance
+> claims below describe Burp AI, Ollama, the OpenAI-compatible engine, and
+> the Anthropic Messages API.
+
 ## Compliance with the third-party LLM policy
 
 The four criteria PortSwigger requires for extensions that talk to third-party

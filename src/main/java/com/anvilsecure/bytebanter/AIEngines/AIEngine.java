@@ -17,6 +17,11 @@ import javax.swing.JOptionPane;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,6 +41,34 @@ public abstract class AIEngine implements HttpHandler {
 
     private static final String VERIFY_LOG_BANNER =
             "============================================================";
+
+    /**
+     * Shared thread pool for async verification. Daemon threads so they don't
+     * block JVM shutdown if the user doesn't unload the extension cleanly.
+     */
+    private static final ExecutorService VERIFICATION_EXECUTOR =
+            Executors.newFixedThreadPool(8, new ThreadFactory() {
+                private final AtomicInteger n = new AtomicInteger();
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r, "bytebanter-verify-" + n.incrementAndGet());
+                    t.setDaemon(true);
+                    return t;
+                }
+            });
+
+    /** Stop the async verification pool. Called from extensionUnloaded. */
+    public static void shutdownVerificationExecutor() {
+        VERIFICATION_EXECUTOR.shutdown();
+        try {
+            if (!VERIFICATION_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
+                VERIFICATION_EXECUTOR.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            VERIFICATION_EXECUTOR.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
 
     private static final String VERIFY_SYSTEM_PROMPT =
             "You are a meticulous web application security analyst. Your job is to determine\n"
@@ -247,6 +280,12 @@ public abstract class AIEngine implements HttpHandler {
      * ask the LLM to judge whether the attack succeeded. On success, log to Burp's
      * Event Log and return an Annotations with HighlightColor.RED to be applied to
      * the Intruder result row.
+     *
+     * <p>When the {@code verify_async} param is true, the verification runs on a
+     * background thread pool and the response's existing Annotations object is
+     * mutated post-hoc. The caller should still use the response's own annotations
+     * via {@code continueWith(response)}. This is experimental: it relies on the
+     * Burp Intruder UI re-reading Annotations after {@code continueWith} returns.
      */
     protected Annotations runVerificationIfApplicable(HttpResponseReceived r, JSONObject params) {
         if (!params.optBoolean("verify_enabled", false)) {
@@ -255,6 +294,27 @@ public abstract class AIEngine implements HttpHandler {
         if (!r.toolSource().isFromTool(ToolType.INTRUDER)) {
             return null;
         }
+
+        if (params.optBoolean("verify_async", false)) {
+            // Capture the response's annotations reference now; mutate after the
+            // background verdict arrives. continueWith(response) will be used by
+            // the caller, so Intruder reads this same Annotations object.
+            final Annotations annotations = r.annotations();
+            VERIFICATION_EXECUTOR.submit(() -> {
+                try {
+                    VerificationResult vr = verifyAttack(r, params);
+                    if (vr.success) {
+                        annotations.setHighlightColor(HighlightColor.RED);
+                        logVerificationSuccess(r, vr.strategy);
+                    }
+                } catch (Throwable t) {
+                    api.logging().logToError("[ByteBanter] Async verification error: " + t.getMessage());
+                }
+            });
+            return null;
+        }
+
+        // Synchronous path (default): block until the verdict is in.
         VerificationResult vr = verifyAttack(r, params);
         if (!vr.success) {
             return null;

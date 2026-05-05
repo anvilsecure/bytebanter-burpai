@@ -7,6 +7,7 @@ import burp.api.montoya.intruder.PayloadGenerator;
 import com.anvilsecure.bytebanter.AIEngines.AIEngine;
 import com.anvilsecure.bytebanter.AIEngines.AnthropicAIEngine;
 import com.anvilsecure.bytebanter.AIEngines.BurpAIEngine;
+import com.anvilsecure.bytebanter.AIEngines.ClaudeCodeEngine;
 import com.anvilsecure.bytebanter.AIEngines.OllamaAIEngine;
 import com.anvilsecure.bytebanter.AIEngines.OpenAIEngine;
 
@@ -26,6 +27,9 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
         engines.add(new OllamaAIEngine(api));
         engines.add(new OpenAIEngine(api));
         engines.add(new AnthropicAIEngine(api));
+        // Claude Code (CLI) — uses the user's existing Anthropic subscription via
+        // the Claude Code agent. Spawns a local subprocess; not BApp-Store-shaped.
+        engines.add(new ClaudeCodeEngine(api));
     }
 
     public void setEngine(int index) {

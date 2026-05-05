@@ -29,6 +29,7 @@ public abstract class AIEngineUI {
     protected JCheckBox verifyEnabledCheck;
     protected JTextArea verifyCriterionField;
     protected JSpinner verifyTruncateSpinner;
+    protected JCheckBox verifyAsyncCheck;
 
     private static final String VERIFY_DEFAULT_CRITERION =
             "The HTTP response body contains tokens that look like leaked secrets "
@@ -59,6 +60,40 @@ public abstract class AIEngineUI {
         promptPanel.add(promptScrollPane, new GridBagConstraints(0, 0, 1, 1, 0.0, 0.0, GridBagConstraints.CENTER,
                 GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
         return promptPanel;
+    }
+
+    /**
+     * Builds the Request Limits panel and instantiates the supporting fields
+     * (infiniteRequestCheck and requestLimitField). Reused by engines that
+     * don't need the parent's full URL/headers configuration but still need
+     * the throttling logic.
+     */
+    protected JPanel buildRequestLimitsPanel() {
+        JPanel limitPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        limitPanel.setBorder(new TitledBorder("Request Limits:"));
+
+        infiniteRequestCheck = new JCheckBox("Infinite Requests");
+        limitPanel.add(infiniteRequestCheck);
+
+        NumberFormat format = NumberFormat.getIntegerInstance();
+        format.setGroupingUsed(false);
+        NumberFormatter formatter = new NumberFormatter(format);
+        formatter.setValueClass(Integer.class);
+        formatter.setMinimum(1);
+        formatter.setMaximum(1000000);
+        formatter.setAllowsInvalid(false);
+        formatter.setCommitsOnValidEdit(true);
+
+        requestLimitField = new JFormattedTextField(formatter);
+        requestLimitField.setValue(10);
+        requestLimitField.setColumns(8);
+        limitPanel.add(new JLabel("Limit:"));
+        limitPanel.add(requestLimitField);
+
+        infiniteRequestCheck.addActionListener(e ->
+                requestLimitField.setEnabled(!infiniteRequestCheck.isSelected()));
+
+        return limitPanel;
     }
 
     public JPanel getStatePanel() {
@@ -113,14 +148,42 @@ public abstract class AIEngineUI {
         gbc.weighty = 0.0;
         panel.add(truncatePanel, gbc);
 
+        // Async verification (experimental)
+        JPanel asyncPanel = new JPanel();
+        asyncPanel.setLayout(new BoxLayout(asyncPanel, BoxLayout.Y_AXIS));
+        verifyAsyncCheck = new JCheckBox("Async (experimental) - run verification on a background pool");
+        verifyAsyncCheck.setSelected(false);
+        verifyAsyncCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
+        asyncPanel.add(verifyAsyncCheck);
+
+        JTextArea asyncNote = new JTextArea(
+                "Highlights propagate post-hoc by mutating the response's Annotations. "
+                        + "If your Burp build doesn't repaint the row after the verdict arrives, "
+                        + "switch back to sync.");
+        asyncNote.setEditable(false);
+        asyncNote.setLineWrap(true);
+        asyncNote.setWrapStyleWord(true);
+        asyncNote.setOpaque(false);
+        asyncNote.setFocusable(false);
+        asyncNote.setBorder(null);
+        asyncNote.setForeground(new Color(0x666666));
+        asyncNote.setFont(asyncNote.getFont().deriveFont(Font.ITALIC));
+        asyncNote.setAlignmentX(Component.LEFT_ALIGNMENT);
+        asyncPanel.add(asyncNote);
+
+        gbc.gridy = 4;
+        panel.add(asyncPanel, gbc);
+
         // Toggle enabled state of dependent fields
         verifyEnabledCheck.addActionListener(e -> {
             boolean on = verifyEnabledCheck.isSelected();
             verifyCriterionField.setEnabled(on);
             verifyTruncateSpinner.setEnabled(on);
+            verifyAsyncCheck.setEnabled(on);
         });
         verifyCriterionField.setEnabled(false);
         verifyTruncateSpinner.setEnabled(false);
+        verifyAsyncCheck.setEnabled(false);
 
         return panel;
     }
@@ -158,31 +221,7 @@ public abstract class AIEngineUI {
         configPanel.add(headersScrollPane, gbc);
 
         // --- Request Limit Configuration ---
-        JPanel limitPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        limitPanel.setBorder(new TitledBorder("Request Limits:"));
-
-        infiniteRequestCheck = new JCheckBox("Infinite Requests");
-        limitPanel.add(infiniteRequestCheck);
-
-        // Create formatter for request limit
-        NumberFormat format = NumberFormat.getIntegerInstance();
-        format.setGroupingUsed(false);
-        NumberFormatter formatter = new NumberFormatter(format);
-        formatter.setValueClass(Integer.class);
-        formatter.setMinimum(1);
-        formatter.setMaximum(1000000);
-        formatter.setAllowsInvalid(false);
-        formatter.setCommitsOnValidEdit(true);
-
-        requestLimitField = new JFormattedTextField(formatter);
-        requestLimitField.setValue(10); // default
-        requestLimitField.setColumns(8);
-        limitPanel.add(new JLabel("Limit:"));
-        limitPanel.add(requestLimitField);
-
-        infiniteRequestCheck.addActionListener(e -> {
-            requestLimitField.setEnabled(!infiniteRequestCheck.isSelected());
-        });
+        JPanel limitPanel = buildRequestLimitsPanel();
 
         // --- Persist Sensitive Data Opt-In (placed above Request Limits to make
         // clear it refers to the headers field above) ---
@@ -296,6 +335,7 @@ public abstract class AIEngineUI {
             params.put("verify_enabled", verifyEnabledCheck.isSelected());
             params.put("verify_criterion", verifyCriterionField.getText());
             params.put("verify_truncate", ((Number) verifyTruncateSpinner.getValue()).intValue());
+            params.put("verify_async", verifyAsyncCheck.isSelected());
         }
 
         // Those fields are not mandatory in engines UIs
@@ -360,8 +400,10 @@ public abstract class AIEngineUI {
             verifyEnabledCheck.setSelected(on);
             verifyCriterionField.setText(params.optString("verify_criterion", VERIFY_DEFAULT_CRITERION));
             verifyTruncateSpinner.setValue(params.optInt("verify_truncate", 4000));
+            verifyAsyncCheck.setSelected(params.optBoolean("verify_async", false));
             verifyCriterionField.setEnabled(on);
             verifyTruncateSpinner.setEnabled(on);
+            verifyAsyncCheck.setEnabled(on);
         }
 
         // Those fields are not mandatory in engines UIs

@@ -5,7 +5,7 @@
 * **LLM-Driven Payload Generation:** Utilizes LLMs to create dynamic payloads based on user-defined prompts and contexts.
 * **Seamless Burp Integration:** Registers as a custom payload generator within Burp Intruder, allowing easy selection and use.
 * **Configurable Prompts:** Users can define and customize prompts to guide the LLM in generating desired payloads.
-* **Support for Multiple LLM Providers:** Burp AI is the default provider; the extension also supports Ollama, the Anthropic Messages API, and any OpenAI-compatible `chat/completions` endpoint (e.g. OpenAI, Oobabooga, LM Studio, vLLM).
+* **Support for Multiple LLM Providers:** Burp AI is the default provider; the extension also supports Ollama, the Anthropic Messages API, any OpenAI-compatible `chat/completions` endpoint (e.g. OpenAI, Oobabooga, LM Studio, vLLM), and the Claude Code CLI (locally installed) for users who prefer to route prompts through their existing Anthropic subscription.
 
 This version of ByteBanter complies with the BApp Store standards for extensions that use third-party LLMs:
 * Declares `EnhancedCapability.AI_FEATURES` and verifies that Burp AI is enabled before any LLM call.
@@ -82,6 +82,22 @@ In the **ByteBanter** extension tab, select the engine you want to use from the 
 >
 > The same applies to the OpenAI-compatible engine if the provider needs both an `Authorization` and additional headers. Empty lines are ignored.
 
+* **Claude Code (CLI):** routes prompts through the [Claude Code](https://docs.claude.com/en/docs/claude-code) command-line agent installed on the same machine as Burp. Useful when you want to use your existing Anthropic subscription (Claude Pro / Max) without provisioning a separate API key, or when you have Bedrock/Vertex auth already configured for Claude Code.
+
+  Configuration:
+  * **Claude Code binary** — defaults to `claude`. Override with an absolute path if the CLI is not on the user's `PATH` (e.g. `/Users/you/.local/bin/claude`).
+  * **Model** — leave empty to use whatever model Claude Code is configured for, or pick / type a Claude model ID such as `claude-sonnet-4-6`, `claude-opus-4-7`, etc.
+
+  How it works internally:
+  * ByteBanter spawns `claude -p --output-format text` and pipes the conversation into the process via stdin.
+  * The system role from the conversation is forwarded with `--append-system-prompt`.
+  * Authentication is handled entirely by Claude Code itself (whatever you configured: API key, OAuth via `claude.ai`, AWS Bedrock, Google Vertex).
+
+  Caveats:
+  * Requires the Claude Code CLI to be installed on the host running Burp.
+  * Each LLM call spawns a subprocess (≈ 1–3 seconds of overhead). With Success Verification enabled this adds up quickly, so use a small `requestsLimit`.
+  * **BApp Store note:** this engine bypasses the Montoya networking API (the subprocess makes its own HTTP calls), so it does not satisfy PortSwigger's policy for third-party LLM extensions. It ships with the source for personal/research use; if you build a JAR you intend to submit to the BApp Store, comment out the `engines.add(new ClaudeCodeEngine(api))` line in `ByteBanterPayloadGenerator` first.
+
 ### Prompt and response context
 Write your prompt to instruct the model on the kind of payloads to generate. Use the **Optimize!** button to rewrite your prompt while preserving the attack goal and your concrete details (target names, parameter names, secrets, regex patterns). Toggle **Stateful Interaction** to keep the conversation across payloads and provide the regex used to extract the relevant portion of the target response into the conversation.
 
@@ -96,6 +112,7 @@ After each Intruder response, the selected LLM can judge whether the attack succ
 * When a response matches the criterion, the Intruder result row is highlighted **red** and a banner-formatted entry is written to Burp's Event Log under the header `[ByteBanter] SUCCESSFUL ATTACK DETECTED`, including URL, status code, and a short English summary of the winning strategy.
 * Only Intruder responses are evaluated; Repeater, Proxy, and other tools are unaffected.
 * Each verification triggers one extra LLM call per Intruder response — factor that into your usage and any provider rate limits.
+* **Async (experimental)** — toggle the *Async* checkbox to push verification to a background thread pool instead of blocking the response. Intruder rows show up immediately and turn red post-hoc as the LLM verdicts arrive. Useful when the LLM call is slow relative to the target response time. If your Burp build does not repaint the row after the verdict (i.e. the highlight never appears), uncheck Async to fall back to the synchronous path. The Event Log entries are emitted in either mode.
 
 Settings are automatically saved by the extension and persisted in Burp's extension data (subject to the Sensitive Data opt-in above).
 

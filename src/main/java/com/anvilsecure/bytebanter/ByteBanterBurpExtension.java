@@ -284,6 +284,8 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         settings.put("engineIndex", selectedEngineIndex);
         api.persistence().extensionData().setString("ExtensionSettings", settings.toString());
         api.persistence().extensionData().setString("SettingsVersion", Float.toString(settingsVersion++));
+        // Stop the async-verification thread pool so the JVM can shut down cleanly.
+        AIEngine.shutdownVerificationExecutor();
     }
 
     private void loadSettings() {
