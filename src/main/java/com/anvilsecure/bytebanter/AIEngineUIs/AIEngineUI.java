@@ -28,8 +28,8 @@ public abstract class AIEngineUI {
     // Success Verification
     protected JCheckBox verifyEnabledCheck;
     protected JTextArea verifyCriterionField;
-    protected JSpinner verifyTruncateSpinner;
-    protected JCheckBox verifyAsyncCheck;
+    protected JSpinner verifyHistoryDepthSpinner;     // shown in stateful mode
+    protected JSpinner verifyTruncateCharsSpinner;    // shown in stateless mode
 
     private static final String VERIFY_DEFAULT_CRITERION =
             "The HTTP response body contains tokens that look like leaked secrets "
@@ -138,52 +138,50 @@ public abstract class AIEngineUI {
         // Row gridy=2 is reserved for the "Generate from prompt!" button, added by
         // ByteBanterBurpExtension.addGenerateVerifyPromptButton() after construction.
 
-        // Truncate spinner row
-        JPanel truncatePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        verifyTruncateSpinner = new JSpinner(new SpinnerNumberModel(4000, 500, 64000, 500));
-        truncatePanel.add(new JLabel("Truncate request/response (chars):"));
-        truncatePanel.add(verifyTruncateSpinner);
+        // Sizing widget swaps based on Stateful Interaction state:
+        //  - stateless: "Truncate request/response (chars)" spinner
+        //  - stateful : "Conversation history depth (turns)" spinner
+        final CardLayout sizingCardLayout = new CardLayout();
+        final JPanel sizingCard = new JPanel(sizingCardLayout);
+
+        JPanel statelessSubpanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        verifyTruncateCharsSpinner = new JSpinner(new SpinnerNumberModel(4000, 500, 64000, 500));
+        statelessSubpanel.add(new JLabel("Truncate request/response (chars):"));
+        statelessSubpanel.add(verifyTruncateCharsSpinner);
+        sizingCard.add(statelessSubpanel, "stateless");
+
+        JPanel statefulSubpanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        verifyHistoryDepthSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 50, 1));
+        statefulSubpanel.add(new JLabel("Conversation history depth (turns):"));
+        statefulSubpanel.add(verifyHistoryDepthSpinner);
+        sizingCard.add(statefulSubpanel, "stateful");
+
         gbc.gridy = 3;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weighty = 0.0;
-        panel.add(truncatePanel, gbc);
+        panel.add(sizingCard, gbc);
 
-        // Async verification (experimental)
-        JPanel asyncPanel = new JPanel();
-        asyncPanel.setLayout(new BoxLayout(asyncPanel, BoxLayout.Y_AXIS));
-        verifyAsyncCheck = new JCheckBox("Async (experimental) - run verification on a background pool");
-        verifyAsyncCheck.setSelected(false);
-        verifyAsyncCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
-        asyncPanel.add(verifyAsyncCheck);
-
-        JTextArea asyncNote = new JTextArea(
-                "Highlights propagate post-hoc by mutating the response's Annotations. "
-                        + "If your Burp build doesn't repaint the row after the verdict arrives, "
-                        + "switch back to sync.");
-        asyncNote.setEditable(false);
-        asyncNote.setLineWrap(true);
-        asyncNote.setWrapStyleWord(true);
-        asyncNote.setOpaque(false);
-        asyncNote.setFocusable(false);
-        asyncNote.setBorder(null);
-        asyncNote.setForeground(new Color(0x666666));
-        asyncNote.setFont(asyncNote.getFont().deriveFont(Font.ITALIC));
-        asyncNote.setAlignmentX(Component.LEFT_ALIGNMENT);
-        asyncPanel.add(asyncNote);
-
-        gbc.gridy = 4;
-        panel.add(asyncPanel, gbc);
+        // Wire the swap: ItemListener fires both for user clicks and programmatic
+        // setSelected() calls (e.g. loadParams), so the right card is shown after
+        // restoring settings too.
+        if (statefulCheck != null) {
+            statefulCheck.addItemListener(ev ->
+                    sizingCardLayout.show(sizingCard,
+                            statefulCheck.isSelected() ? "stateful" : "stateless"));
+            sizingCardLayout.show(sizingCard,
+                    statefulCheck.isSelected() ? "stateful" : "stateless");
+        }
 
         // Toggle enabled state of dependent fields
         verifyEnabledCheck.addActionListener(e -> {
             boolean on = verifyEnabledCheck.isSelected();
             verifyCriterionField.setEnabled(on);
-            verifyTruncateSpinner.setEnabled(on);
-            verifyAsyncCheck.setEnabled(on);
+            verifyHistoryDepthSpinner.setEnabled(on);
+            verifyTruncateCharsSpinner.setEnabled(on);
         });
         verifyCriterionField.setEnabled(false);
-        verifyTruncateSpinner.setEnabled(false);
-        verifyAsyncCheck.setEnabled(false);
+        verifyHistoryDepthSpinner.setEnabled(false);
+        verifyTruncateCharsSpinner.setEnabled(false);
 
         return panel;
     }
@@ -334,8 +332,8 @@ public abstract class AIEngineUI {
         if (verifyEnabledCheck != null) {
             params.put("verify_enabled", verifyEnabledCheck.isSelected());
             params.put("verify_criterion", verifyCriterionField.getText());
-            params.put("verify_truncate", ((Number) verifyTruncateSpinner.getValue()).intValue());
-            params.put("verify_async", verifyAsyncCheck.isSelected());
+            params.put("verify_history_depth", ((Number) verifyHistoryDepthSpinner.getValue()).intValue());
+            params.put("verify_truncate_chars", ((Number) verifyTruncateCharsSpinner.getValue()).intValue());
         }
 
         // Those fields are not mandatory in engines UIs
@@ -399,11 +397,11 @@ public abstract class AIEngineUI {
             boolean on = params.optBoolean("verify_enabled", false);
             verifyEnabledCheck.setSelected(on);
             verifyCriterionField.setText(params.optString("verify_criterion", VERIFY_DEFAULT_CRITERION));
-            verifyTruncateSpinner.setValue(params.optInt("verify_truncate", 4000));
-            verifyAsyncCheck.setSelected(params.optBoolean("verify_async", false));
+            verifyHistoryDepthSpinner.setValue(params.optInt("verify_history_depth", 1));
+            verifyTruncateCharsSpinner.setValue(params.optInt("verify_truncate_chars", 4000));
             verifyCriterionField.setEnabled(on);
-            verifyTruncateSpinner.setEnabled(on);
-            verifyAsyncCheck.setEnabled(on);
+            verifyHistoryDepthSpinner.setEnabled(on);
+            verifyTruncateCharsSpinner.setEnabled(on);
         }
 
         // Those fields are not mandatory in engines UIs

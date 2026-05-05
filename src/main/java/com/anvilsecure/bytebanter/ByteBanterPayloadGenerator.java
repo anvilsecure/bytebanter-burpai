@@ -61,4 +61,14 @@ public class ByteBanterPayloadGenerator implements PayloadGenerator {
             return GeneratedPayload.end();
         }
     }
+
+    /**
+     * Called by Intruder once per attack. Resets the engine's conversation
+     * state so context from a previous attack does not leak into the new one.
+     */
+    public void resetForNewAttack() {
+        if (engine != null) {
+            engine.resetConversation();
+        }
+    }
 }

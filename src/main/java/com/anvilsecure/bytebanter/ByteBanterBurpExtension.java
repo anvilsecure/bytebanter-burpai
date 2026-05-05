@@ -266,6 +266,9 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
 
     @Override
     public PayloadGenerator providePayloadGenerator(AttackConfiguration attackConfiguration) {
+        // Each new Intruder attack gets a fresh conversation; previous-attack context
+        // would otherwise leak into the new run when stateful mode is on.
+        payloadGenerator.resetForNewAttack();
         return payloadGenerator;
     }
 
@@ -284,8 +287,6 @@ public class ByteBanterBurpExtension implements BurpExtension, ExtensionUnloadin
         settings.put("engineIndex", selectedEngineIndex);
         api.persistence().extensionData().setString("ExtensionSettings", settings.toString());
         api.persistence().extensionData().setString("SettingsVersion", Float.toString(settingsVersion++));
-        // Stop the async-verification thread pool so the JVM can shut down cleanly.
-        AIEngine.shutdownVerificationExecutor();
     }
 
     private void loadSettings() {

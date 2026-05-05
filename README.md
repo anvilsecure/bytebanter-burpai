@@ -108,11 +108,13 @@ The **"Persist API key and custom headers across sessions"** checkbox controls w
 After each Intruder response, the selected LLM can judge whether the attack succeeded according to a user-defined criterion. The feature is **off by default**.
 
 * Enable the checkbox in the Success Verification panel and write your success criterion in the textarea, or click **Generate from prompt!** to derive a starting criterion from your payload-generation prompt.
-* Use the truncate spinner to cap how many characters of the request and response are sent to the verification model.
+* The third widget in the panel changes shape based on **Stateful Interaction** (in the Context Regex panel):
+  * **Stateless** (checkbox unchecked): the spinner is **"Truncate request/response (chars)"**. The verifier receives the raw HTTP request and response of the single payload being judged, capped at the configured number of characters per side. Default 4000.
+  * **Stateful** (checkbox checked): the spinner becomes **"Conversation history depth (turns)"**. The verifier receives the last N `(ByteBanter payload, regex-extracted target response)` turns from the running conversation, so it can detect successes that emerge across multiple exchanges (e.g. a password reconstructed letter-by-letter). Default 1 = only the most recent turn.
+  * Both values are persisted independently — toggling Stateful Interaction does not lose the value you set in the other mode.
 * When a response matches the criterion, the Intruder result row is highlighted **red** and a banner-formatted entry is written to Burp's Event Log under the header `[ByteBanter] SUCCESSFUL ATTACK DETECTED`, including URL, status code, and a short English summary of the winning strategy.
 * Only Intruder responses are evaluated; Repeater, Proxy, and other tools are unaffected.
 * Each verification triggers one extra LLM call per Intruder response — factor that into your usage and any provider rate limits.
-* **Async (experimental)** — toggle the *Async* checkbox to push verification to a background thread pool instead of blocking the response. Intruder rows show up immediately and turn red post-hoc as the LLM verdicts arrive. Useful when the LLM call is slow relative to the target response time. If your Burp build does not repaint the row after the verdict (i.e. the highlight never appears), uncheck Async to fall back to the synchronous path. The Event Log entries are emitted in either mode.
 
 Settings are automatically saved by the extension and persisted in Burp's extension data (subject to the Sensitive Data opt-in above).
 

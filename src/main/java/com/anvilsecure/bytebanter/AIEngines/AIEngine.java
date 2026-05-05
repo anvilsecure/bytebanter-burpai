@@ -17,11 +17,6 @@ import javax.swing.JOptionPane;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,7 +27,10 @@ public abstract class AIEngine implements HttpHandler {
     protected AIEngineUI UI;
     protected JSONArray messages;
     protected Boolean isStateful = false;
-    protected String prompt = "";
+    // Cache of the last user-prompt seen by askAi(). NOT the user's prompt:
+    // the source of truth is the UI textarea (params.getString("prompt")).
+    // Used only for change-detection so we know when to reseed the conversation.
+    protected String lastUsedPrompt = "";
 
     protected int counter = 0;
     protected int requestsLimit = 1;
@@ -41,34 +39,6 @@ public abstract class AIEngine implements HttpHandler {
 
     private static final String VERIFY_LOG_BANNER =
             "============================================================";
-
-    /**
-     * Shared thread pool for async verification. Daemon threads so they don't
-     * block JVM shutdown if the user doesn't unload the extension cleanly.
-     */
-    private static final ExecutorService VERIFICATION_EXECUTOR =
-            Executors.newFixedThreadPool(8, new ThreadFactory() {
-                private final AtomicInteger n = new AtomicInteger();
-                @Override
-                public Thread newThread(Runnable r) {
-                    Thread t = new Thread(r, "bytebanter-verify-" + n.incrementAndGet());
-                    t.setDaemon(true);
-                    return t;
-                }
-            });
-
-    /** Stop the async verification pool. Called from extensionUnloaded. */
-    public static void shutdownVerificationExecutor() {
-        VERIFICATION_EXECUTOR.shutdown();
-        try {
-            if (!VERIFICATION_EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
-                VERIFICATION_EXECUTOR.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            VERIFICATION_EXECUTOR.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-    }
 
     private static final String VERIFY_SYSTEM_PROMPT =
             "You are a meticulous web application security analyst. Your job is to determine\n"
@@ -99,16 +69,10 @@ public abstract class AIEngine implements HttpHandler {
                     + "<<<USER_CRITERION>>>\n"
                     + "</criterion>\n"
                     + "\n"
-                    + "<request>\n"
-                    + "<<<REQUEST>>>\n"
-                    + "</request>\n"
+                    + "<<<CONTEXT>>>\n"
                     + "\n"
-                    + "<response>\n"
-                    + "<<<RESPONSE>>>\n"
-                    + "</response>\n"
-                    + "\n"
-                    + "Decide success vs failure based strictly on <criterion> applied to <response>.\n"
-                    + "Output the JSON object now.";
+                    + "Decide success vs failure by evaluating <criterion> against the data shown,\n"
+                    + "giving most weight to the latest exchange. Output the JSON object now.";
 
     protected AIEngine(MontoyaApi api, String name) {
         this.api = api;
@@ -125,6 +89,21 @@ public abstract class AIEngine implements HttpHandler {
 
     public MontoyaApi getApi() {
         return api;
+    }
+
+    /**
+     * Reset per-attack conversation state. Called by ByteBanterPayloadGenerator
+     * each time Intruder starts a new attack so context from a previous attack
+     * does not leak into the new one. Does NOT touch the user's prompt in the
+     * UI; that is sourced from {@code params.getString("prompt")} on the next
+     * call to {@link #askAi()}.
+     */
+    public void resetConversation() {
+        this.messages = new JSONArray();
+        this.counter = 0;
+        // Empty so settingsChanged becomes true on next askAi(), forcing a
+        // fresh reseed with the current UI prompt.
+        this.lastUsedPrompt = "";
     }
 
     // BApp Store requirement: verify AI support is enabled before any LLM call.
@@ -152,13 +131,14 @@ public abstract class AIEngine implements HttpHandler {
         JSONObject params = UI.getParams();
         JSONObject data = packData(new JSONObject(), params);
 
-        isInfiniteRequests = data.getBoolean("isInfiniteRequests");
-        // reset counter if attack length changes
-        if (oldInfiniteFlag != isInfiniteRequests || this.requestsLimit != data.getInt("requestsLimit")) {
+        // Throttling control values come from the UI params, not from the API body data.
+        isInfiniteRequests = params.optBoolean("isInfiniteRequests", false);
+        int newLimit = params.optInt("requestsLimit", 1000000);
+        if (oldInfiniteFlag != isInfiniteRequests || this.requestsLimit != newLimit) {
             counter = 0;
         }
         oldInfiniteFlag = isInfiniteRequests;
-        this.requestsLimit = data.getInt("requestsLimit");
+        this.requestsLimit = newLimit;
 
         // check if the number of maximum requests has been reached
         if (isInfiniteRequests || counter < this.requestsLimit) {
@@ -166,15 +146,15 @@ public abstract class AIEngine implements HttpHandler {
 
             // reset messages on "stateful" change or prompt change
             boolean settingsChanged = (isStateful != params.getBoolean("stateful"))
-                    || !prompt.equals(params.getString("prompt"));
+                    || !lastUsedPrompt.equals(params.getString("prompt"));
 
             isStateful = params.getBoolean("stateful");
-            prompt = params.getString("prompt");
+            lastUsedPrompt = params.getString("prompt");
 
             // Reset if settings changed OR we are in stateless mode (fresh request every time)
             if (settingsChanged || !isStateful) {
                 messages = new JSONArray();
-                messages.put(new JSONObject().put("role", "system").put("content", prompt));
+                messages.put(new JSONObject().put("role", "system").put("content", lastUsedPrompt));
             }
 
             // If stateless, always add the default trigger message
@@ -280,12 +260,6 @@ public abstract class AIEngine implements HttpHandler {
      * ask the LLM to judge whether the attack succeeded. On success, log to Burp's
      * Event Log and return an Annotations with HighlightColor.RED to be applied to
      * the Intruder result row.
-     *
-     * <p>When the {@code verify_async} param is true, the verification runs on a
-     * background thread pool and the response's existing Annotations object is
-     * mutated post-hoc. The caller should still use the response's own annotations
-     * via {@code continueWith(response)}. This is experimental: it relies on the
-     * Burp Intruder UI re-reading Annotations after {@code continueWith} returns.
      */
     protected Annotations runVerificationIfApplicable(HttpResponseReceived r, JSONObject params) {
         if (!params.optBoolean("verify_enabled", false)) {
@@ -294,27 +268,6 @@ public abstract class AIEngine implements HttpHandler {
         if (!r.toolSource().isFromTool(ToolType.INTRUDER)) {
             return null;
         }
-
-        if (params.optBoolean("verify_async", false)) {
-            // Capture the response's annotations reference now; mutate after the
-            // background verdict arrives. continueWith(response) will be used by
-            // the caller, so Intruder reads this same Annotations object.
-            final Annotations annotations = r.annotations();
-            VERIFICATION_EXECUTOR.submit(() -> {
-                try {
-                    VerificationResult vr = verifyAttack(r, params);
-                    if (vr.success) {
-                        annotations.setHighlightColor(HighlightColor.RED);
-                        logVerificationSuccess(r, vr.strategy);
-                    }
-                } catch (Throwable t) {
-                    api.logging().logToError("[ByteBanter] Async verification error: " + t.getMessage());
-                }
-            });
-            return null;
-        }
-
-        // Synchronous path (default): block until the verdict is in.
         VerificationResult vr = verifyAttack(r, params);
         if (!vr.success) {
             return null;
@@ -329,14 +282,24 @@ public abstract class AIEngine implements HttpHandler {
             if (!isAIEnabled(true)) {
                 return VerificationResult.failed();
             }
-            int truncate = params.optInt("verify_truncate", 4000);
             String criterion = params.optString("verify_criterion", "");
-            String reqText = truncate(response.initiatingRequest().toString(), truncate);
-            String resText = truncate(response.toString(), truncate);
+
+            // In stateful mode, prefer the extracted-conversation context (LLM payloads
+            // ByteBanter sent + regex-extracted target responses) — far cleaner than
+            // raw HTTP and aligned with what the user already configured.
+            // Fallback to raw HTTP request/response when no extracted history exists.
+            String contextBlock;
+            if (isStateful && messages != null && messages.length() >= 4) {
+                int historyDepth = Math.max(1, params.optInt("verify_history_depth", 1));
+                contextBlock = buildExtractedConversationBlock(historyDepth);
+            } else {
+                int truncateChars = Math.max(500, params.optInt("verify_truncate_chars", 4000));
+                contextBlock = buildHttpFallbackBlock(response, truncateChars);
+            }
+
             String userMsg = VERIFY_USER_TEMPLATE
                     .replace("<<<USER_CRITERION>>>", criterion)
-                    .replace("<<<REQUEST>>>", reqText)
-                    .replace("<<<RESPONSE>>>", resText);
+                    .replace("<<<CONTEXT>>>", contextBlock);
             String raw = askAi(VERIFY_SYSTEM_PROMPT, userMsg);
             if (raw == null || raw.isEmpty()) {
                 return VerificationResult.failed();
@@ -346,6 +309,49 @@ public abstract class AIEngine implements HttpHandler {
             api.logging().logToError("[ByteBanter] Verification call failed: " + t.getMessage());
             return VerificationResult.failed();
         }
+    }
+
+    /**
+     * Builds a transcript of the last {@code historyDepth} (assistant, user) pairs
+     * from the {@code messages} array. The first two entries (system prompt + user
+     * trigger) are always skipped; we only show the conversation pairs that
+     * ByteBanter actually exchanged with the target.
+     */
+    private String buildExtractedConversationBlock(int historyDepth) {
+        int conversationStart = 2; // skip [system, user-trigger]
+        int totalLength = messages.length();
+        int wholePairs = Math.max(0, (totalLength - conversationStart) / 2);
+        int turnsToInclude = Math.min(historyDepth, wholePairs);
+        int startIdx = totalLength - (turnsToInclude * 2);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = startIdx; i + 1 < totalLength; i += 2) {
+            String payload = messageContent(messages.get(i));
+            String extracted = messageContent(messages.get(i + 1));
+            int turnNum = (i - conversationStart) / 2 + 1;
+            sb.append("<turn n=\"").append(turnNum).append("\">\n");
+            sb.append("  <bytebanter_payload>\n").append(payload).append("\n  </bytebanter_payload>\n");
+            sb.append("  <target_extracted_response>\n").append(extracted).append("\n  </target_extracted_response>\n");
+            sb.append("</turn>\n");
+        }
+        return sb.toString();
+    }
+
+    private String buildHttpFallbackBlock(HttpResponseReceived response, int truncateChars) {
+        return "<request>\n"
+                + truncate(response.initiatingRequest().toString(), truncateChars)
+                + "\n</request>\n\n"
+                + "<response>\n"
+                + truncate(response.toString(), truncateChars)
+                + "\n</response>";
+    }
+
+    /** Extracts the text of a messages[] entry. All engines now store {role, content} JSONObjects. */
+    private static String messageContent(Object entry) {
+        if (entry instanceof JSONObject) {
+            return ((JSONObject) entry).optString("content", "");
+        }
+        return String.valueOf(entry);
     }
 
     private void logVerificationSuccess(HttpResponseReceived r, String strategy) {
