@@ -202,9 +202,14 @@ public abstract class AIEngine implements HttpHandler {
     JSONObject sendPostRequest(String urlString, String payload, String headers) {
         HttpRequest request = HttpRequest.httpRequestFromUrl(urlString);
         request = request.withMethod("POST");
-        if (!headers.isEmpty()) {
-            HttpHeader httpHeader = HttpHeader.httpHeader(headers);
-            request = request.withAddedHeader(httpHeader);
+        // Headers field is free-form; one header per line. Empty lines are ignored.
+        if (headers != null && !headers.isEmpty()) {
+            for (String line : headers.split("\\r?\\n")) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty()) {
+                    request = request.withAddedHeader(HttpHeader.httpHeader(trimmed));
+                }
+            }
         }
         request = request.withAddedHeader("Content-Type", "application/json");
         request = request.withBody(payload);

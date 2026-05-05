@@ -10,6 +10,7 @@ import java.awt.*;
 public class AnthropicAIEngineUI extends AIEngineUI {
 
     private static final String DEFAULT_URL = "https://api.anthropic.com/v1/messages";
+    private static final String DEFAULT_HEADERS_HINT = "x-api-key: YOUR_ANTHROPIC_API_KEY";
     private static final String[] DEFAULT_MODELS = {
             "claude-sonnet-4-6",
             "claude-opus-4-7",
@@ -19,7 +20,6 @@ public class AnthropicAIEngineUI extends AIEngineUI {
     };
 
     private JComboBox<String> modelCombo;
-    private JPasswordField apiKeyField;
 
     public AnthropicAIEngineUI(AIEngine engine) {
         super(engine);
@@ -29,6 +29,10 @@ public class AnthropicAIEngineUI extends AIEngineUI {
     public JPanel getAIConfPanel() {
         JPanel configPanel = super.getAIConfPanel();
         urlField.setText(DEFAULT_URL);
+        // Anthropic requires x-api-key. Ask the user to add it in the parent Headers field.
+        if (headersField.getText().isEmpty()) {
+            headersField.setText(DEFAULT_HEADERS_HINT);
+        }
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -36,13 +40,6 @@ public class AnthropicAIEngineUI extends AIEngineUI {
         gbc.gridx = 0;
         gbc.gridwidth = 2;
         gbc.weightx = 1.0;
-
-        apiKeyField = new JPasswordField(40);
-        JPanel apiKeyPanel = new JPanel(new BorderLayout());
-        apiKeyPanel.setBorder(new TitledBorder("API Key (x-api-key):"));
-        apiKeyPanel.add(apiKeyField, BorderLayout.CENTER);
-        gbc.gridy = 3;
-        configPanel.add(apiKeyPanel, gbc);
 
         modelCombo = new JComboBox<>(DEFAULT_MODELS);
         modelCombo.setEditable(true);
@@ -93,7 +90,6 @@ public class AnthropicAIEngineUI extends AIEngineUI {
     public JSONObject getParams() {
         JSONObject params = super.getParams();
         params.put("model", String.valueOf(modelCombo.getSelectedItem()));
-        params.put("api_key", new String(apiKeyField.getPassword()));
         return params;
     }
 
@@ -101,15 +97,5 @@ public class AnthropicAIEngineUI extends AIEngineUI {
     public void loadParams(JSONObject params) {
         super.loadParams(params);
         modelCombo.setSelectedItem(params.optString("model", DEFAULT_MODELS[0]));
-        apiKeyField.setText(params.optString("api_key", ""));
-    }
-
-    @Override
-    public JSONObject getPersistableParams() {
-        JSONObject params = super.getPersistableParams();
-        if (persistSensitiveCheck != null && !persistSensitiveCheck.isSelected()) {
-            params.remove("api_key");
-        }
-        return params;
     }
 }

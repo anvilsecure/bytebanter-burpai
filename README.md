@@ -38,32 +38,70 @@ gradle build
   * Select the built JAR file (the `uber` one) to load the extension.
 
 ## Usage
-* Configure LLM Settings:
-  * Navigate to the newly added ByteBanter tab in Burp Suite. 
-  * Configure any necessary settings. 
+* Configure the engine:
+  * Open the newly added ByteBanter tab in Burp Suite.
+  * Pick an engine from the combo box in the top right corner (Burp AI by default; switch to Ollama, OpenAI-compatible, or Anthropic if you prefer).
+  * Fill in URL / API key / model for the selected engine — see [Configuration](#configuration) for per-engine details.
 * Set Up Intruder Attack:
-  * Go to the Intruder tab. 
-  * Configure your target and positions as usual. 
+  * Go to the Intruder tab.
+  * Configure your target and positions as usual.
 * Select ByteBanter as Payload Source:
   * In the Payloads tab:
   * Set Payload type to Extension-generated.
-  * Choose ByteBanter from the list of available generators. 
+  * Choose ByteBanter from the list of available generators.
 * Define Prompts:
   * Within the ByteBanter tab, create and customize prompts that will guide the LLM in generating payloads.
+  * Optionally enable Success Verification to highlight responses that meet a user-defined criterion (see [Success Verification](#success-verification) below).
 * Start the Attack:
-  * Run the Intruder attack. 
+  * Run the Intruder attack.
   * ByteBanter will generate and supply payloads dynamically using the configured LLM.
 
 ## Configuration
-In the **ByteBanter** extension tab: select the engine you want to use from the combo box in the top right corner (Burp AI is the default).
-Configure the endpoint details (URL, headers, parameters) where applicable. Set whether you want the extension to keep track of target responses and
-specify the regular expression to extract them from the HTTP body. Write your prompt to instruct the model for generating payloads.
-Eventually use the "Optimize!" button to ask AI to optimize your prompt. And you are ready to go! Settings are
-automatically saved and used by the generator and Burp also persists them.
+In the **ByteBanter** extension tab, select the engine you want to use from the combo box in the top right corner (Burp AI is the default). Each engine has its own settings; switching engines preserves the per-engine configuration.
+
+### Per-engine configuration
+* **Burp AI:** no endpoint configuration needed. Make sure AI features are enabled in Burp settings; ByteBanter will surface a dialog if they are not.
+* **Ollama:** set the base URL (default `http://localhost:11434/`). The model dropdown auto-populates by querying `/api/tags` on the configured URL as soon as it becomes reachable.
+* **OpenAI-compatible (Chat Completions):** set the URL of any `/v1/chat/completions` endpoint (OpenAI itself, Oobabooga, LM Studio, vLLM, etc.) and add an `Authorization: Bearer <token>` header in the headers field if the provider requires it.
+* **Anthropic:** keep the default URL `https://api.anthropic.com/v1/messages`. There is **no dedicated field** for the API key — paste it in the **Headers** field of the engine configuration:
+
+  ```
+  x-api-key: YOUR_ANTHROPIC_API_KEY
+  ```
+
+  ByteBanter automatically adds the required `anthropic-version` and `Content-Type` headers, so `x-api-key` is the only one you need to enter. Pick a model from the editable dropdown (you can also type a custom model ID).
+
+  When the URL points to the official Anthropic API (`api.anthropic.com`), the engine refuses to send the request if `x-api-key` is missing from the Headers field. If you point the URL at a proxy or a mock server that does not require this header, the check is skipped.
+
+> **Multiple headers** — the Headers field accepts **one header per line**. Use a literal newline as separator. Example for Anthropic with an extra custom header:
+>
+> ```
+> x-api-key: YOUR_ANTHROPIC_API_KEY
+> x-custom-trace: my-trace-id
+> ```
+>
+> The same applies to the OpenAI-compatible engine if the provider needs both an `Authorization` and additional headers. Empty lines are ignored.
+
+### Prompt and response context
+Write your prompt to instruct the model on the kind of payloads to generate. Use the **Optimize!** button to rewrite your prompt while preserving the attack goal and your concrete details (target names, parameter names, secrets, regex patterns). Toggle **Stateful Interaction** to keep the conversation across payloads and provide the regex used to extract the relevant portion of the target response into the conversation.
+
+### Sensitive Data persistence
+The **"Persist API key and custom headers across sessions"** checkbox controls whether sensitive fields are written to Burp's extension data. It is **off by default**: API keys and custom headers live only in memory and must be re-entered each session. When checked, those fields are persisted to Burp's extension data file in plaintext on disk — only enable it on machines you trust. The checkbox state itself is always remembered.
+
+### Success Verification
+After each Intruder response, the selected LLM can judge whether the attack succeeded according to a user-defined criterion. The feature is **off by default**.
+
+* Enable the checkbox in the Success Verification panel and write your success criterion in the textarea, or click **Generate from prompt!** to derive a starting criterion from your payload-generation prompt.
+* Use the truncate spinner to cap how many characters of the request and response are sent to the verification model.
+* When a response matches the criterion, the Intruder result row is highlighted **red** and a banner-formatted entry is written to Burp's Event Log under the header `[ByteBanter] SUCCESSFUL ATTACK DETECTED`, including URL, status code, and a short English summary of the winning strategy.
+* Only Intruder responses are evaluated; Repeater, Proxy, and other tools are unaffected.
+* Each verification triggers one extra LLM call per Intruder response — factor that into your usage and any provider rate limits.
+
+Settings are automatically saved by the extension and persisted in Burp's extension data (subject to the Sensitive Data opt-in above).
 
 ## Development
 ### Prerequisites
-* Java Development Kit (JDK) 11 or higher
+* Java Development Kit (JDK) 17 or higher
 * Build tool (Maven or Gradle)
 * Burp Suite (Community or Professional Edition)
 

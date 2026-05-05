@@ -14,6 +14,7 @@ import javax.swing.JOptionPane;
 public class AnthropicAIEngine extends AIEngine {
 
     private static final String ANTHROPIC_VERSION = "2023-06-01";
+    private static final String DEFAULT_ANTHROPIC_HOST = "api.anthropic.com";
 
     public AnthropicAIEngine(MontoyaApi api) {
         super(api, "Anthropic");
@@ -32,10 +33,16 @@ public class AnthropicAIEngine extends AIEngine {
 
     @Override
     protected String sendRequestToAI(JSONObject data, JSONObject params) {
-        String apiKey = params.optString("api_key", "");
-        if (apiKey.isEmpty()) {
+        String url = params.getString("URL");
+        String userHeaders = params.optString("headers", "");
+
+        // Enforce x-api-key only when targeting the official Anthropic endpoint.
+        // Custom URLs (proxies, mocks, gateways) may not require it.
+        if (url.toLowerCase().contains(DEFAULT_ANTHROPIC_HOST)
+                && !userHeaders.toLowerCase().contains("x-api-key")) {
             JOptionPane.showMessageDialog(null,
-                    "ByteBanter: Anthropic API key is missing. Set it in the engine configuration.",
+                    "ByteBanter: Anthropic requires an x-api-key header. Add it in the Headers field as:\n"
+                            + "x-api-key: YOUR_ANTHROPIC_API_KEY",
                     "ByteBanter Error", JOptionPane.ERROR_MESSAGE);
             return null;
         }
@@ -53,14 +60,16 @@ public class AnthropicAIEngine extends AIEngine {
         }
         data.put("messages", filtered);
 
-        HttpRequest request = HttpRequest.httpRequestFromUrl(params.getString("URL"));
+        HttpRequest request = HttpRequest.httpRequestFromUrl(url);
         request = request.withMethod("POST");
         request = request.withAddedHeader("Content-Type", "application/json");
         request = request.withAddedHeader("anthropic-version", ANTHROPIC_VERSION);
-        request = request.withAddedHeader("x-api-key", apiKey);
-        String extraHeaders = params.optString("headers", "");
-        if (!extraHeaders.isEmpty()) {
-            request = request.withAddedHeader(HttpHeader.httpHeader(extraHeaders));
+        // Multi-header support: one header per line, empty lines ignored.
+        for (String line : userHeaders.split("\\r?\\n")) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty()) {
+                request = request.withAddedHeader(HttpHeader.httpHeader(trimmed));
+            }
         }
         request = request.withBody(data.toString());
 
